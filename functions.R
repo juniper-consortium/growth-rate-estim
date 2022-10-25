@@ -43,19 +43,24 @@ setParametersFn <- function(linkType,
 #' - positiveResults: number of positive tests (<= numberTest and >= 0)
 #' - date: date of count in R date format
 #' parametersModel: output of setParametersFn()
-#' Notes: old code references: runModel = 3, priorType = 2
-runModelGrowthRate <- function(countTable, parametersModel){
+#' saveSamples: Default F. If T, returns matrixSampleDays and sampleDerivatives,
+#'              two matrices of size [days, num. samples] containing samples of the posterior of the GP and GP derivative respectively.
+#' minDate (optional): minimum date to include in the model
+#' maxDate (optional): maximum date to include in the model
+runModelGrowthRate <- function(countTable, parametersModel, saveSamples = F, minDate = NULL, maxDate = NULL){
   # Load parameters into function environment and add auxiliar variables
   list2env(parametersModel$params, envir = environment())
   list2env(parametersModel$config, envir = environment())
   levelsWeek <- c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
   
   # Create auxiliar table with dates
+  if(is.null(minDate)) minDate <- min(countTable$date)
+  if(is.null(maxDate)) maxDate <- max(countTable$date)
   minDay <- 1
-  maxDay <- as.integer(max(countTable$date) - min(countTable$date) + 1)
+  maxDay <- as.integer(maxDate - minDate + 1)
   numDays <- maxDay - minDay + 1
   dateTable <- data.table(dayId = minDay:maxDay,
-                          date = seq.Date(from = min(countTable$date), to = max(countTable$date), by = "day"))
+                          date = seq.Date(from = minDate, to = maxDate, by = "day"))
   
   # ---------------------------------------------------- #
   #                      FIT MODEL                       #
@@ -167,12 +172,12 @@ runModelGrowthRate <- function(countTable, parametersModel){
   # Compute approximate derivative using windows (+-3)
   # Compute +- 3 days window derivative (+-2 and +-1 for the third and second last point)
   sampleDerivatives <- t(rbind(matrix(NA, nrow = 1, ncol = ncol(matrixSampleDays)),
-                             ((matrixSampleDays[3,] - matrixSampleDays[1,])/2),
-                             ((matrixSampleDays[5,] - matrixSampleDays[1,])/4),
-                             (matrixSampleDays[7:numDays,] - matrixSampleDays[1:(numDays - 7 + 1),])/6,
-                             ((matrixSampleDays[numDays,] - matrixSampleDays[numDays - 5 + 1,])/4),
-                             ((matrixSampleDays[numDays,] - matrixSampleDays[numDays - 3 + 1,])/2),
-                             matrix(NA, nrow = 1, ncol = ncol(matrixSampleDays))))
+                               ((matrixSampleDays[3,] - matrixSampleDays[1,])/2),
+                               ((matrixSampleDays[5,] - matrixSampleDays[1,])/4),
+                               (matrixSampleDays[7:numDays,] - matrixSampleDays[1:(numDays - 7 + 1),])/6,
+                               ((matrixSampleDays[numDays,] - matrixSampleDays[numDays - 5 + 1,])/4),
+                               ((matrixSampleDays[numDays,] - matrixSampleDays[numDays - 3 + 1,])/2),
+                               matrix(NA, nrow = 1, ncol = ncol(matrixSampleDays))))
   
   # ---------------------------------------------------- #
   #                POSTERIOR GROWTH RATE                 #
@@ -225,6 +230,10 @@ runModelGrowthRate <- function(countTable, parametersModel){
   setkey(countTable, date)
   posteriorTransfGP[countTable, ":="(positiveResults = i.positiveResults)]
   
-  return(list(posteriorGrowth = posteriorGrowth, posteriorTransfGP = posteriorTransfGP))
+  if(saveSamples == F){
+    return(list(posteriorGrowth = posteriorGrowth, posteriorTransfGP = posteriorTransfGP))
+  }else{
+    return(list(posteriorGrowth = posteriorGrowth, posteriorTransfGP = posteriorTransfGP, matrixSampleDays = matrixSampleDays, sampleDerivatives = t(sampleDerivatives)))
+  }
   
 }
