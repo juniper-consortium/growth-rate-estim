@@ -9,7 +9,8 @@ library(data.table)
 library(INLA)
 library(ggplot2)
 
-source("functions.R")
+source("src/functions.R")
+source("src/MCMC_functions.R")
 
 # ---------------------------------------------------- #
 #        Run model for validation section              #
